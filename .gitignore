@@ -1,0 +1,11 @@
+bin/
+obj/
+.vs/
+.idea/
+*.user
+appsettings.Local.json
+.env
+TestResults/
+
+# Tài liệu đề bài (không nộp)
+Đề bài/

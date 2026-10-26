@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: qtkd-postgres
+    environment:
+      POSTGRES_DB: qtkd
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${QTKD_DB_PASSWORD:?đặt biến môi trường QTKD_DB_PASSWORD}
+    ports:
+      - "5433:5432"
+    volumes:
+      - qtkd-pgdata:/var/lib/postgresql/data
+volumes:
+  qtkd-pgdata:
