@@ -1,0 +1,408 @@
+
+=== 1a. Tạo Customer thiếu thông tin bắt buộc -> 400
+> POST /api/customers
+{"name":"","taxCode":"12AB"}
+< HTTP 400
+{
+  "code": "VALIDATION_FAILED",
+  "message": "Dữ liệu không hợp lệ.",
+  "errors": [
+    {
+      "field": "name",
+      "code": "REQUIRED",
+      "message": "Tên khách hàng là bắt buộc."
+    },
+    {
+      "field": "taxCode",
+      "code": "INVALID_FORMAT",
+      "message": "Mã số thuế gồm 10 chữ số hoặc 10 chữ số kèm '-' và 3 chữ số."
+    }
+  ]
+}
+
+=== 1b. Tạo Customer hợp lệ -> 201
+> POST /api/customers
+{"name":"Công ty TNHH Minh Phát Logistics","taxCode":"0393599997","address":"Q.4, TP.HCM"}
+< HTTP 201
+{
+  "id": "21e4e06c-0e4e-4591-ae07-4467ecf3434a",
+  "name": "Công ty TNHH Minh Phát Logistics",
+  "taxCode": "0393599997",
+  "address": "Q.4, TP.HCM",
+  "status": "Active"
+}
+
+=== 2a. Tạo Contract với ngày hiệu lực sai (kết thúc trước bắt đầu) -> 400
+> POST /api/contracts
+{"contractNo":"HD-2026-99997","customerId":"21e4e06c-0e4e-4591-ae07-4467ecf3434a","startDate":"2026-12-01","endDate":"2026-11-01"}
+< HTTP 400
+{
+  "code": "VALIDATION_FAILED",
+  "message": "Dữ liệu không hợp lệ.",
+  "errors": [
+    {
+      "field": "endDate",
+      "code": "INVALID_PERIOD",
+      "message": "Ngày kết thúc phải sau ngày bắt đầu."
+    }
+  ]
+}
+
+=== 2b. Tạo Contract Draft (chưa có nội dung, chưa có tệp) -> 201
+> POST /api/contracts
+{"contractNo":"HD-2026-99997","customerId":"21e4e06c-0e4e-4591-ae07-4467ecf3434a","startDate":"2026-12-01","endDate":"2027-11-30","serviceGroup":"Dịch vụ cảng"}
+< HTTP 201
+{
+  "id": "be826b66-ca25-4846-8ce5-f0c97cee9164",
+  "contractNo": "HD-2026-99997",
+  "customerId": "21e4e06c-0e4e-4591-ae07-4467ecf3434a",
+  "customerName": "Công ty TNHH Minh Phát Logistics",
+  "startDate": "2026-12-01",
+  "endDate": "2027-11-30",
+  "status": "Draft",
+  "serviceGroup": "Dịch vụ cảng",
+  "content": null,
+  "updatedAt": "2026-11-02T06:13:17.979461+00:00",
+  "attachments": [],
+  "submitCheck": {
+    "canSubmit": false,
+    "conditions": [
+      {
+        "code": "CUSTOMER_VALID",
+        "description": "Khách hàng hợp lệ",
+        "passed": true,
+        "detail": null
+      },
+      {
+        "code": "EFFECTIVE_PERIOD_VALID",
+        "description": "Thời gian hiệu lực hợp lệ",
+        "passed": true,
+        "detail": null
+      },
+      {
+        "code": "REQUIRED_CONTENT",
+        "description": "Đủ nội dung bắt buộc",
+        "passed": false,
+        "detail": "Thiếu nhóm dịch vụ (serviceGroup) hoặc nội dung hợp đồng (content)."
+      },
+      {
+        "code": "REQUIRED_FILES",
+        "description": "Đủ tệp bắt buộc",
+        "passed": false,
+        "detail": "Thiếu tệp loại DuThaoHopDong (bản dự thảo hợp đồng)."
+      }
+    ]
+  }
+}
+
+=== 3. Gửi trình duyệt khi thiếu dữ liệu -> 400 CTR02_NOT_SATISFIED, vẫn Draft
+> POST /api/contracts/be826b66-ca25-4846-8ce5-f0c97cee9164/submit
+{"comment":"Gửi lần 1"}
+< HTTP 400
+{
+  "code": "CTR02_NOT_SATISFIED",
+  "message": "Hợp đồng chưa đủ điều kiện gửi trình duyệt.",
+  "errors": [
+    {
+      "field": "REQUIRED_CONTENT",
+      "code": "NOT_SATISFIED",
+      "message": "Thiếu nhóm dịch vụ (serviceGroup) hoặc nội dung hợp đồng (content)."
+    },
+    {
+      "field": "REQUIRED_FILES",
+      "code": "NOT_SATISFIED",
+      "message": "Thiếu tệp loại DuThaoHopDong (bản dự thảo hợp đồng)."
+    }
+  ]
+}
+
+=== 4. Thử chuyển thẳng Draft -> Approved -> 409 CTR03_INVALID_TRANSITION
+> POST /api/contracts/be826b66-ca25-4846-8ce5-f0c97cee9164/approve
+< HTTP 409
+{
+  "code": "CTR03_INVALID_TRANSITION",
+  "message": "Không được chuyển hợp đồng từ Draft sang Approved; hợp đồng phải được gửi trình duyệt (PendingApproval) trước.",
+  "errors": []
+}
+
+=== 5a. Bổ sung nội dung hợp đồng (Draft -> sửa được theo CTR-01) -> 200
+> PUT /api/contracts/be826b66-ca25-4846-8ce5-f0c97cee9164
+{"contractNo":"HD-2026-99997","customerId":"21e4e06c-0e4e-4591-ae07-4467ecf3434a","startDate":"2026-12-01","endDate":"2027-11-30","serviceGroup":"Dịch vụ cảng","content":"Cung cấp dịch vụ bốc xếp và lưu bãi container theo bảng giá dịch vụ cảng 2026."}
+< HTTP 200
+{
+  "id": "be826b66-ca25-4846-8ce5-f0c97cee9164",
+  "contractNo": "HD-2026-99997",
+  "customerId": "21e4e06c-0e4e-4591-ae07-4467ecf3434a",
+  "customerName": "Công ty TNHH Minh Phát Logistics",
+  "startDate": "2026-12-01",
+  "endDate": "2027-11-30",
+  "status": "Draft",
+  "serviceGroup": "Dịch vụ cảng",
+  "content": "Cung cấp dịch vụ bốc xếp và lưu bãi container theo bảng giá dịch vụ cảng 2026.",
+  "updatedAt": "2026-11-02T06:13:18.149759+00:00",
+  "attachments": [],
+  "submitCheck": {
+    "canSubmit": false,
+    "conditions": [
+      {
+        "code": "CUSTOMER_VALID",
+        "description": "Khách hàng hợp lệ",
+        "passed": true,
+        "detail": null
+      },
+      {
+        "code": "EFFECTIVE_PERIOD_VALID",
+        "description": "Thời gian hiệu lực hợp lệ",
+        "passed": true,
+        "detail": null
+      },
+      {
+        "code": "REQUIRED_CONTENT",
+        "description": "Đủ nội dung bắt buộc",
+        "passed": true,
+        "detail": null
+      },
+      {
+        "code": "REQUIRED_FILES",
+        "description": "Đủ tệp bắt buộc",
+        "passed": false,
+        "detail": "Thiếu tệp loại DuThaoHopDong (bản dự thảo hợp đồng)."
+      }
+    ]
+  }
+}
+
+=== 5b. Bổ sung tệp bắt buộc (bản dự thảo hợp đồng) -> 201
+> POST /api/contracts/be826b66-ca25-4846-8ce5-f0c97cee9164/attachments
+{"fileName":"HD-2026-99997-du-thao.pdf","documentType":"DuThaoHopDong"}
+< HTTP 201
+{
+  "id": "3247ef27-8eb2-4e89-9d2f-09e14f51f583",
+  "fileName": "HD-2026-99997-du-thao.pdf",
+  "documentType": "DuThaoHopDong",
+  "uploadedAt": "2026-11-02T06:13:18.177258+00:00"
+}
+
+=== 6. Gửi lại (có Idempotency-Key) -> 200 PendingApproval
+> POST /api/contracts/be826b66-ca25-4846-8ce5-f0c97cee9164/submit
+{"comment":"Đã bổ sung đủ hồ sơ"}
+< HTTP 200
+{
+  "contractId": "be826b66-ca25-4846-8ce5-f0c97cee9164",
+  "contractNo": "HD-2026-99997",
+  "status": "PendingApproval",
+  "approvalId": "567ce0ae-11af-45ef-89dc-ebefe7e63f80",
+  "submittedAt": "2026-11-02T06:13:18.215598+00:00",
+  "replayed": false
+}
+
+=== 7a. Gửi lặp cùng Idempotency-Key -> 200, replayed=true, cùng approvalId
+> POST /api/contracts/be826b66-ca25-4846-8ce5-f0c97cee9164/submit
+{"comment":"Đã bổ sung đủ hồ sơ"}
+< HTTP 200
+{
+  "contractId": "be826b66-ca25-4846-8ce5-f0c97cee9164",
+  "contractNo": "HD-2026-99997",
+  "status": "PendingApproval",
+  "approvalId": "567ce0ae-11af-45ef-89dc-ebefe7e63f80",
+  "submittedAt": "2026-11-02T06:13:18.215598+00:00",
+  "replayed": true
+}
+
+=== 7b. Gửi lặp không có key -> 409 CONTRACT_ALREADY_SUBMITTED
+> POST /api/contracts/be826b66-ca25-4846-8ce5-f0c97cee9164/submit
+< HTTP 409
+{
+  "code": "CONTRACT_ALREADY_SUBMITTED",
+  "message": "Hợp đồng HD-2026-99997 đã được gửi trình duyệt và đang chờ phê duyệt.",
+  "errors": []
+}
+
+=== 8. Sửa Contract khi đang PendingApproval -> 409 CTR01_NOT_EDITABLE
+> PUT /api/contracts/be826b66-ca25-4846-8ce5-f0c97cee9164
+{"contractNo":"HD-2026-99997","customerId":"21e4e06c-0e4e-4591-ae07-4467ecf3434a","startDate":"2026-12-01","endDate":"2028-11-30","serviceGroup":"Dịch vụ cảng","content":"Sửa sau khi gửi"}
+< HTTP 409
+{
+  "code": "CTR01_NOT_EDITABLE",
+  "message": "Chỉ được sửa hợp đồng ở trạng thái Draft hoặc RevisionRequested (hiện tại: PendingApproval).",
+  "errors": []
+}
+
+=== 9. Xem lại hợp đồng và lịch sử xử lý
+> GET /api/contracts/be826b66-ca25-4846-8ce5-f0c97cee9164
+< HTTP 200
+{
+  "id": "be826b66-ca25-4846-8ce5-f0c97cee9164",
+  "contractNo": "HD-2026-99997",
+  "customerId": "21e4e06c-0e4e-4591-ae07-4467ecf3434a",
+  "customerName": "Công ty TNHH Minh Phát Logistics",
+  "startDate": "2026-12-01",
+  "endDate": "2027-11-30",
+  "status": "PendingApproval",
+  "serviceGroup": "Dịch vụ cảng",
+  "content": "Cung cấp dịch vụ bốc xếp và lưu bãi container theo bảng giá dịch vụ cảng 2026.",
+  "updatedAt": "2026-11-02T06:13:18.215598+00:00",
+  "attachments": [
+    {
+      "id": "3247ef27-8eb2-4e89-9d2f-09e14f51f583",
+      "fileName": "HD-2026-99997-du-thao.pdf",
+      "documentType": "DuThaoHopDong",
+      "uploadedAt": "2026-11-02T06:13:18.177258+00:00"
+    }
+  ],
+  "submitCheck": {
+    "canSubmit": false,
+    "conditions": [
+      {
+        "code": "CUSTOMER_VALID",
+        "description": "Khách hàng hợp lệ",
+        "passed": true,
+        "detail": null
+      },
+      {
+        "code": "EFFECTIVE_PERIOD_VALID",
+        "description": "Thời gian hiệu lực hợp lệ",
+        "passed": true,
+        "detail": null
+      },
+      {
+        "code": "REQUIRED_CONTENT",
+        "description": "Đủ nội dung bắt buộc",
+        "passed": true,
+        "detail": null
+      },
+      {
+        "code": "REQUIRED_FILES",
+        "description": "Đủ tệp bắt buộc",
+        "passed": true,
+        "detail": null
+      }
+    ]
+  }
+}
+> GET /api/contracts/be826b66-ca25-4846-8ce5-f0c97cee9164/history
+< HTTP 200
+[
+  {
+    "id": "9f18b229-f389-4ed3-b527-912be93070e6",
+    "action": "Created",
+    "fromStatus": null,
+    "toStatus": "Draft",
+    "performedBy": "nv.kinhdoanh",
+    "note": null,
+    "createdAt": "2026-11-02T06:13:17.979461+00:00"
+  },
+  {
+    "id": "176ede90-d2e5-468e-9496-4aee9dc91578",
+    "action": "Updated",
+    "fromStatus": null,
+    "toStatus": null,
+    "performedBy": "nv.kinhdoanh",
+    "note": null,
+    "createdAt": "2026-11-02T06:13:18.149759+00:00"
+  },
+  {
+    "id": "eb21154e-a1ea-4f59-ac2f-d014e28177a4",
+    "action": "AttachmentAdded",
+    "fromStatus": null,
+    "toStatus": null,
+    "performedBy": "nv.kinhdoanh",
+    "note": "DuThaoHopDong: HD-2026-99997-du-thao.pdf",
+    "createdAt": "2026-11-02T06:13:18.177258+00:00"
+  },
+  {
+    "id": "76198e67-1e0f-48f5-9e50-15f6ed7e1da2",
+    "action": "Submitted",
+    "fromStatus": "Draft",
+    "toStatus": "PendingApproval",
+    "performedBy": "nv.kinhdoanh",
+    "note": "Đã bổ sung đủ hồ sơ",
+    "createdAt": "2026-11-02T06:13:18.215598+00:00"
+  }
+]
+
+=== 10. Đối chiếu trong PostgreSQL
+  ContractNo   |     Status      | ServiceGroup |           UpdatedAt           
+---------------+-----------------+--------------+-------------------------------
+ HD-2026-99997 | PendingApproval | Dịch vụ cảng | 2026-11-02 06:13:18.215598+00
+(1 row)
+
+                  Id                  | Status  |  IdempotencyKey   | RequestedBy  
+--------------------------------------+---------+-------------------+--------------
+ 567ce0ae-11af-45ef-89dc-ebefe7e63f80 | Pending | submit-1793599997 | nv.kinhdoanh
+(1 row)
+
+     Action      | FromStatus |    ToStatus     | PerformedBy  |           CreatedAt           
+-----------------+------------+-----------------+--------------+-------------------------------
+ Created         |            | Draft           | nv.kinhdoanh | 2026-11-02 06:13:17.979461+00
+ Updated         |            |                 | nv.kinhdoanh | 2026-11-02 06:13:18.149759+00
+ AttachmentAdded |            |                 | nv.kinhdoanh | 2026-11-02 06:13:18.177258+00
+ Submitted       | Draft      | PendingApproval | nv.kinhdoanh | 2026-11-02 06:13:18.215598+00
+(4 rows)
+
+approvalId lần gửi thành công: 567ce0ae-11af-45ef-89dc-ebefe7e63f80
+
+=== 11. AC05 — 5 yêu cầu gửi đồng thời trên một hợp đồng hợp lệ mới: chỉ 1 thành công
+   1 200
+   4 409
+{
+  "contractNo": "HD-2026-99997-C",
+  "status": "PendingApproval"
+}
+
+=== 12. Pricing: tạo PriceList, thêm PriceItem, đơn giá sai, mã trùng
+> POST /api/pricelists
+{"name":"Bảng giá demo 1793599997","effectiveDate":"2027-01-01","items":[{"serviceCode":"CANG-BOC-XEP","unitPrice":160000}]}
+< HTTP 201
+{
+  "id": "e284b204-3b62-455b-82b0-2e2b1443a04b",
+  "name": "Bảng giá demo 1793599997",
+  "effectiveDate": "2027-01-01",
+  "items": [
+    {
+      "serviceCode": "CANG-BOC-XEP",
+      "unitPrice": 160000
+    }
+  ]
+}
+> POST /api/pricelists/e284b204-3b62-455b-82b0-2e2b1443a04b/items
+{"serviceCode":"CANG-LUU-BAI","unitPrice":48000}
+< HTTP 201
+{
+  "serviceCode": "CANG-LUU-BAI",
+  "unitPrice": 48000
+}
+> POST /api/pricelists/e284b204-3b62-455b-82b0-2e2b1443a04b/items
+{"serviceCode":"CANG-CAN-XE","unitPrice":-5}
+< HTTP 400
+{
+  "code": "VALIDATION_FAILED",
+  "message": "Dữ liệu không hợp lệ.",
+  "errors": [
+    {
+      "field": "unitPrice",
+      "code": "MUST_BE_POSITIVE",
+      "message": "Đơn giá phải lớn hơn 0."
+    }
+  ]
+}
+> POST /api/pricelists/e284b204-3b62-455b-82b0-2e2b1443a04b/items
+{"serviceCode":"CANG-LUU-BAI","unitPrice":50000}
+< HTTP 409
+{
+  "code": "PRICEITEM_EXISTS",
+  "message": "Mã dịch vụ CANG-LUU-BAI đã có trong bảng giá.",
+  "errors": []
+}
+> GET /api/pricelists/e284b204-3b62-455b-82b0-2e2b1443a04b/items
+< HTTP 200
+[
+  {
+    "serviceCode": "CANG-BOC-XEP",
+    "unitPrice": 160000.00
+  },
+  {
+    "serviceCode": "CANG-LUU-BAI",
+    "unitPrice": 48000.00
+  }
+]

@@ -1,4 +1,4 @@
-# QTKD — Phase 2 (Tuần 05): Nền tảng dự án
+# QTKD — Phase 2 (Tuần 05–06)
 
 ASP.NET Core Web API (.NET 10) + Entity Framework Core + PostgreSQL.
 
@@ -6,15 +6,18 @@ ASP.NET Core Web API (.NET 10) + Entity Framework Core + PostgreSQL.
 
 ```
 src/QTKD.Api/
-  Domain/        Entity: Customer, Contract, PriceList, PriceItem
+  Controllers/   Tầng API: nhận request, gọi Service, đổi kết quả thành HTTP status
+  Services/      Tầng nghiệp vụ: CustomerService, ContractService (US03), PricingService
+  Domain/        Entity + ContractRules (CTR-01/02/03, không phụ thuộc DB)
+  Dtos/          Request/response, mẫu lỗi ErrorResponse
   Data/          QtkdDbContext, cấu hình quan hệ, dữ liệu mẫu (seed)
-  Controllers/   API: GET /api/customers, GET /api/contracts/{id}
-  Migrations/    Migration InitialCreate
-docs/            Sơ đồ thành phần, minh chứng
+  Migrations/    InitialCreate (tuần 05), Week06_ContractWorkflow (tuần 06)
+docs/
+  api.md                 Danh sách API, request/response mẫu, mẫu lỗi
+  us03-traceability.md   Đối chiếu US03 / CTR-01–03 với code, giả định, giới hạn
+  demo/                  Script demo tuần 06 và kết quả chạy
 docker-compose.yml   PostgreSQL chạy cục bộ (tuỳ chọn)
 ```
-
-Tuần 06 sẽ thêm lớp `Services/` (xử lý nghiệp vụ) giữa Controllers và Data.
 
 ## Yêu cầu
 
@@ -51,8 +54,9 @@ cd src/QTKD.Api
 dotnet ef database update
 ```
 
-Tạo 4 bảng `Customers`, `Contracts`, `PriceLists`, `PriceItems` cùng khóa chính/khóa ngoại và dữ liệu mẫu:
-2 Customer, 1 Contract `HD-2026-018` (Draft), 1 PriceList có 2 PriceItem.
+Tạo các bảng `Customers`, `Contracts`, `ContractAttachments`, `ApprovalRequests`, `ContractHistory`,
+`PriceLists`, `PriceItems` cùng khóa chính/khóa ngoại và dữ liệu mẫu:
+2 Customer, 1 Contract `HD-2026-018` (Draft, còn thiếu nội dung và tệp bắt buộc), 1 PriceList có 2 PriceItem.
 
 ## 3. Khởi động API
 
@@ -62,7 +66,7 @@ dotnet run --project src/QTKD.Api --launch-profile http
 
 Swagger UI: http://localhost:5084/swagger
 
-## 4. Thử hai endpoint
+## 4. Thử endpoint đọc dữ liệu (tuần 05)
 
 ```
 curl http://localhost:5084/api/customers
@@ -76,8 +80,49 @@ docker exec -it qtkd-postgres psql -U postgres -d qtkd -c 'SELECT * FROM "Custom
 docker exec -it qtkd-postgres psql -U postgres -d qtkd -c 'SELECT * FROM "Contracts";'
 ```
 
+## 5. Demo tuần 06: Customer → Contract → Submit
+
+Cần `curl` và `jq`. Khi API đang chạy:
+
+```
+./docs/demo/demo-week06.sh
+```
+
+Script chạy theo thứ tự: tạo Customer (sai → đúng) → tạo Contract Draft → gửi khi thiếu dữ liệu (400, CTR-02)
+→ thử Draft → Approved (409, CTR-03) → bổ sung nội dung và tệp → gửi lại (200, PendingApproval)
+→ gửi lặp (cùng key: trả lại kết quả cũ; không key: 409) → sửa khi PendingApproval (409, CTR-01)
+→ xem lịch sử và dữ liệu trong PostgreSQL → 5 yêu cầu gửi đồng thời (chỉ 1 thành công) → Pricing.
+Kết quả một lần chạy: [docs/demo/demo-week06-output.txt](docs/demo/demo-week06-output.txt).
+
+Kiểm thử lại toàn bộ yêu cầu tuần 06 (có assert, đối chiếu DB) — nên dùng database riêng:
+
+```
+docker exec qtkd-postgres psql -U postgres -c 'CREATE DATABASE qtkd_verify'
+cd src/QTKD.Api && dotnet ef database update --connection "Host=localhost;Port=5433;Database=qtkd_verify;Username=postgres;Password=<mật khẩu>" && cd ../..
+ConnectionStrings__QtkdDb="Host=localhost;Port=5433;Database=qtkd_verify;Username=postgres;Password=<mật khẩu>" \
+  dotnet run --project src/QTKD.Api --launch-profile http --urls http://localhost:5085
+# terminal khác:
+API=http://localhost:5085 DB=qtkd_verify ./docs/demo/verify-week06.sh
+```
+
+Kết quả: [docs/demo/verify-week06-output.txt](docs/demo/verify-week06-output.txt) (106 PASS / 0 FAIL).
+
+Danh sách API đầy đủ: [docs/api.md](docs/api.md). Đối chiếu US03/CTR-01–03: [docs/us03-traceability.md](docs/us03-traceability.md).
+
+Xem trạng thái trong DB:
+
+```
+docker exec -it qtkd-postgres psql -U postgres -d qtkd -c 'SELECT "ContractNo", "Status" FROM "Contracts";'
+docker exec -it qtkd-postgres psql -U postgres -d qtkd -c 'SELECT * FROM "ApprovalRequests";'
+docker exec -it qtkd-postgres psql -U postgres -d qtkd -c 'SELECT * FROM "ContractHistory" ORDER BY "CreatedAt";'
+```
+
 ## Ghi chú thiết kế
 
 - Trạng thái `Status` lưu dạng chuỗi (`Draft`, `PendingApproval`, ...) cho dễ đọc trong DB; enum khớp sơ đồ trạng thái Phase 1.
 - `PriceItem` dùng khóa chính ghép (`PriceListId`, `ServiceCode`).
 - Xóa Customer bị chặn nếu còn Contract (`Restrict`); xóa PriceList xóa luôn PriceItem (`Cascade`).
+- Lỗi nghiệp vụ không dùng exception: Service trả `Result<T>` (giá trị hoặc `ServiceError`), Controller đổi sang 400/404/409.
+- Gửi trình duyệt: tạo `ApprovalRequest`, đổi trạng thái và ghi lịch sử trong cùng một `SaveChanges` (một transaction).
+- Chống gửi trùng: `Idempotency-Key`, concurrency token `xmin` trên `Contracts`, unique index một phiên Pending cho mỗi hợp đồng.
+- Giả định CTR-02 và giới hạn hiện tại (chưa phân quyền, tệp chỉ là metadata...): xem [docs/us03-traceability.md](docs/us03-traceability.md).

@@ -1,0 +1,128 @@
+
+## 0. Nền tảng tuần 05 + Swagger
+  PASS  GET /api/customers
+  PASS  GET /api/contracts/{id} (seed HD-2026-018)
+  PASS  Swagger có endpoint submit
+
+## 1. Customer — tạo / xem / cập nhật, trường bắt buộc
+  PASS  Thiếu tên -> 400
+  PASS  Thiếu mã số thuế -> 400
+  PASS  Tên toàn khoảng trắng + MST sai -> 400, 2 lỗi
+  PASS  Status không hợp lệ -> 400
+  PASS  Các request lỗi không tạo Customer
+  PASS  Tạo Customer hợp lệ -> 201
+  PASS  Customer đọc lại được từ DB
+  PASS  Trùng mã số thuế -> 409
+  PASS  Xem chi tiết Customer
+  PASS  Danh sách có Customer mới
+  PASS  Customer không tồn tại -> 404
+  PASS  Cập nhật Customer -> 200
+  PASS  Tên mới đã lưu DB
+  PASS  Cập nhật thiếu tên -> 400
+  PASS  Cập nhật lỗi không đổi DB
+
+## 2. Contract — tạo / xem / cập nhật, ngày hiệu lực, Customer tham chiếu
+  PASS  Thiếu mọi trường -> 400, 4 lỗi
+  PASS  Customer không tồn tại -> 400
+  PASS  Customer Inactive -> 400
+  PASS  Ngày kết thúc trước ngày bắt đầu -> 400
+  PASS  Ngày kết thúc = ngày bắt đầu -> 400
+  PASS  JSON sai kiểu -> 400 INVALID_REQUEST
+  PASS  Các request lỗi không tạo Contract
+  PASS  Tạo Contract -> 201, luôn Draft dù gửi status=Approved
+  PASS  Contract lưu DB ở Draft
+  PASS  Ghi lịch sử Created
+  PASS  Trùng số hợp đồng -> 409
+  PASS  Xem chi tiết Contract
+  PASS  Danh sách Contract
+  PASS  Contract không tồn tại -> 404
+  PASS  Tệp đính kèm sai -> 400, 2 lỗi
+
+## 3. CTR-01 — chỉ sửa khi Draft / RevisionRequested (TC03, TC04)
+  PASS  TC03 Sửa Contract ở Draft -> 200
+  PASS  TC03 Dữ liệu sửa đã lưu DB, vẫn Draft
+  PASS  Sửa Draft với ngày sai -> 400
+  PASS  Thêm tệp khi Draft -> 201
+  PASS  Gửi K1 (đủ điều kiện) -> 200
+  PASS  TC04 Sửa Contract ở PendingApproval -> 409
+  PASS  TC04 Dữ liệu giữ nguyên
+  PASS  Thêm tệp khi PendingApproval -> 409
+  PASS  Thêm tệp bị từ chối, dữ liệu giữ nguyên
+
+## 4. CTR-02 — thiếu từng điều kiện: gửi thất bại, dữ liệu không đổi (TC05)
+  PASS  TC05 Thiếu nội dung -> 400 chỉ báo REQUIRED_CONTENT
+  PASS  TC05 Thiếu nội dung -> vẫn Draft, không tạo approval/lịch sử
+  PASS  TC05 Thiếu tệp bắt buộc -> 400 chỉ báo REQUIRED_FILES
+  PASS  TC05 Thiếu tệp bắt buộc -> vẫn Draft, không tạo approval/lịch sử
+  PASS  TC05 Chỉ có tệp sai loại -> 400 chỉ báo REQUIRED_FILES
+  PASS  TC05 Chỉ có tệp sai loại -> vẫn Draft, không tạo approval/lịch sử
+  PASS  TC05 Hết hiệu lực (2025) -> 400 chỉ báo EFFECTIVE_PERIOD_VALID
+  PASS  TC05 Hết hiệu lực (2025) -> vẫn Draft, không tạo approval/lịch sử
+  PASS  TC05 Khách hàng đã Inactive -> 400 chỉ báo CUSTOMER_VALID
+  PASS  TC05 Khách hàng đã Inactive -> vẫn Draft, không tạo approval/lịch sử
+  PASS  TC05 Thiếu nội dung + tệp -> 400 chỉ báo REQUIRED_CONTENT,REQUIRED_FILES
+  PASS  TC05 Thiếu nội dung + tệp -> vẫn Draft, không tạo approval/lịch sử
+
+## 5. US03 Submit thành công (TC06) và gửi lặp (TC08)
+  PASS  Trước khi gửi: canSubmit=true
+  PASS  TC06 Submit hợp lệ -> 200 PendingApproval
+  PASS  TC06 DB: Contract PendingApproval
+  PASS  TC06 DB: 1 ApprovalRequest Pending đúng approvalId
+  PASS  TC06 DB: lịch sử Submitted Draft->PendingApproval
+  PASS  TC08 Gửi lặp cùng key -> 200 replayed, cùng approvalId
+  PASS  TC08 Gửi lặp không key -> 409
+  PASS  TC08 Gửi lặp key khác -> 409
+  PASS  TC08 Không tạo thêm approval/lịch sử
+  PASS  Submit hợp đồng không tồn tại -> 404
+
+## 6. AC05 — gửi đồng thời
+  PASS  10 yêu cầu đồng thời -> 1x200, 9x409
+  PASS  Chỉ 1 ApprovalRequest
+  PASS  Chỉ 1 lịch sử Submitted
+  PASS  5 yêu cầu đồng thời cùng key -> chỉ 1 ApprovalRequest (   5 200 )
+  PASS  5 yêu cầu đồng thời cùng key -> đều 200 (cùng một kết quả)
+  PASS  Cả 5 phản hồi trỏ cùng approvalId (chỉ 1 bản ghi có key)
+  PASS  Không có lỗi 500 khi đồng thời
+
+## 7. CTR-03 — không chuyển Draft -> Approved (TC07)
+  PASS  TC07 Approve khi Draft -> 409
+  PASS  TC07 Vẫn Draft, dữ liệu không đổi
+  PASS  Submit chỉ chuyển sang PendingApproval (không Approved)
+  PASS  Approve sau khi PendingApproval -> 200
+  PASS  Approval chuyển Approved
+  PASS  Approve lần 2 (Approved -> Approved) -> 409
+  PASS  Submit hợp đồng đã Approved -> 409
+  PASS  Sửa hợp đồng Approved -> 409
+
+## 8. Pricing — PriceList / PriceItem
+  PASS  PriceList thiếu tên + ngày -> 400, 2 lỗi
+  PASS  Mã trùng trong request -> 400
+  PASS  Item đơn giá 0 khi tạo -> 400
+  PASS  Request lỗi không tạo PriceList
+  PASS  Tạo PriceList kèm item -> 201
+  PASS  Thêm PriceItem -> 201
+  PASS  PriceItem liên kết đúng PriceList
+  PASS  PriceItem không hợp lệ {"serviceCode":"X1","unitPrice":0} -> 400
+  PASS  PriceItem không hợp lệ {"serviceCode":"X1","unitPrice":-1} -> 400
+  PASS  PriceItem không hợp lệ {"serviceCode":"X1","unitPrice":1.234} -> 400
+  PASS  PriceItem không hợp lệ {"serviceCode":"X1"} -> 400
+  PASS  PriceItem không hợp lệ {"serviceCode":"x y","unitPrice":1} -> 400
+  PASS  PriceItem không hợp lệ {"unitPrice":1} -> 400
+  PASS  Đơn giá tràn số -> 400
+  PASS  Trùng mã dịch vụ -> 409
+  PASS  Sau các lỗi chỉ còn 2 PriceItem, đơn giá cũ giữ nguyên
+  PASS  Xem PriceItem
+  PASS  Xem PriceList
+  PASS  Danh sách PriceList
+  PASS  Thêm item vào PriceList không tồn tại -> 404
+  PASS  Xem item PriceList không tồn tại -> 404
+
+## 9. Ví dụ xuyên suốt của đề: HD-2026-018 (Công ty Minh Phát)
+  PASS  HD-2026-018 gửi khi thiếu dữ liệu -> 400
+  PASS  HD-2026-018 vẫn Draft, dữ liệu không đổi
+  PASS  Bổ sung nội dung -> 200
+  PASS  Bổ sung tệp -> 201
+  PASS  HD-2026-018 gửi lại -> 200 PendingApproval
+  PASS  DB: HD-2026-018 PendingApproval
+
+== Tổng kết: 106 PASS, 0 FAIL ==
