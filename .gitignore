@@ -6,6 +6,4 @@ obj/
 appsettings.Local.json
 .env
 TestResults/
-
-# Tài liệu đề bài (không nộp)
-Đề bài/
+.DS_Store

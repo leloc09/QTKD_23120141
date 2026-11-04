@@ -9,7 +9,11 @@ RUN=$(date +%s)
 TAX="03${RUN: -8}"
 CONTRACT_NO="HD-2026-${RUN: -5}"
 
-step() { printf '\n\033[1;34m=== %s\033[0m\n' "$*"; }
+# PAUSE=1 ./docs/demo/demo-week06.sh : dừng trước mỗi bước, bấm Enter để chạy tiếp
+step() {
+  printf '\n\033[1;34m=== %s\033[0m\n' "$*"
+  if [[ -n "${PAUSE:-}" ]]; then read -r -p "[Enter] " </dev/tty; fi
+}
 # call METHOD PATH [BODY] [extra curl args...] — in HTTP status + body, lưu body vào $BODY
 call() {
   local method=$1 path=$2 body=${3:-}; shift 3 || shift $#

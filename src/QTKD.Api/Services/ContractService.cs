@@ -135,7 +135,7 @@ public class ContractService
         if (contract.Status == ContractStatus.PendingApproval)
             return ServiceError.Conflict("CONTRACT_ALREADY_SUBMITTED",
                 $"Hợp đồng {contract.ContractNo} đã được gửi trình duyệt và đang chờ phê duyệt.");
-        if (contract.Status != ContractStatus.Draft || !ContractRules.CanTransition(contract.Status, ContractStatus.PendingApproval))
+        if (!ContractRules.CanTransition(contract.Status, ContractStatus.PendingApproval))
             return ServiceError.Conflict("INVALID_STATUS",
                 $"Chỉ gửi trình duyệt hợp đồng ở trạng thái Draft (hiện tại: {contract.Status}).");
 
@@ -293,7 +293,7 @@ public class ContractService
         }
         catch (DbUpdateException ex) when (DbErrors.IsUniqueViolation(ex))
         {
-            if ((ex.InnerException as Npgsql.PostgresException)?.ConstraintName?.Contains("ContractNo") == true)
+            if (DbErrors.ConstraintName(ex)?.Contains("ContractNo") == true)
                 return ContractNoExists(contract.ContractNo);
             return ServiceError.Conflict("CONCURRENT_UPDATE",
                 $"Hợp đồng {contract.ContractNo} vừa được gửi trình duyệt bởi yêu cầu khác.");
