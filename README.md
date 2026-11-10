@@ -1,4 +1,4 @@
-# QTKD — Phase 2 (Tuần 05–06)
+# QTKD — Phase 2 (Tuần 05–07)
 
 ASP.NET Core Web API (.NET 10) + Entity Framework Core + PostgreSQL.
 
@@ -12,16 +12,20 @@ src/QTKD.Api/
   Dtos/          Request/response, mẫu lỗi ErrorResponse
   Data/          QtkdDbContext, cấu hình quan hệ, dữ liệu mẫu (seed)
   Migrations/    InitialCreate (tuần 05), Week06_ContractWorkflow (tuần 06)
+tests/
+  QTKD.UnitTests/         Unit test nghiệp vụ: CTR-01/02/03, trường bắt buộc Customer (không cần DB)
+  QTKD.IntegrationTests/  Integration test: gọi API thật + PostgreSQL kiểm thử riêng (Testcontainers), TC01–TC08
 docs/
   api.md                 Danh sách API, request/response mẫu, mẫu lỗi
   us03-traceability.md   Đối chiếu US03 / CTR-01–03 với code, giả định, giới hạn
   demo/                  Script demo tuần 06 và kết quả chạy
+  testing/               Tuần 07: báo cáo kiểm thử, kết quả dotnet test (console + TRX), lỗi đã sửa
 docker-compose.yml   PostgreSQL chạy cục bộ (tuỳ chọn)
 ```
 
 ## Yêu cầu
 
-.NET SDK 10, PostgreSQL 14+ (hoặc Docker), công cụ `dotnet-ef`:
+.NET SDK 10, PostgreSQL 14+ (hoặc Docker), công cụ `dotnet-ef`. Chạy integration test cần Docker đang chạy:
 
 ```
 dotnet tool install --global dotnet-ef
@@ -115,6 +119,48 @@ Xem trạng thái trong DB:
 docker exec -it qtkd-postgres psql -U postgres -d qtkd -c 'SELECT "ContractNo", "Status" FROM "Contracts";'
 docker exec -it qtkd-postgres psql -U postgres -d qtkd -c 'SELECT * FROM "ApprovalRequests";'
 docker exec -it qtkd-postgres psql -U postgres -d qtkd -c 'SELECT * FROM "ContractHistory" ORDER BY "CreatedAt";'
+```
+
+## 6. Tuần 07: chạy test tự động
+
+```
+dotnet test src/QTKD.slnx
+```
+
+- **Unit test** (`tests/QTKD.UnitTests`) không cần database.
+- **Integration test** (`tests/QTKD.IntegrationTests`) tự tạo một container PostgreSQL 16 tạm thời (Testcontainers),
+  chạy migration từ đầu, gọi API qua HTTP rồi đối chiếu dữ liệu trong DB. Container bị xóa sau khi chạy xong,
+  **không đụng** tới database `qtkd`. Yêu cầu: Docker đang chạy.
+- Không có Docker: tạo một database rỗng có tên chứa `test` rồi trỏ test tới đó. Database này **bị xóa và tạo lại** mỗi lần chạy:
+
+  ```
+  export QTKD_TEST_DB="Host=localhost;Port=5433;Database=qtkd_test;Username=postgres;Password=<mật khẩu>"
+  dotnet test src/QTKD.slnx
+  ```
+
+Lưu kết quả (console + TRX):
+
+```
+dotnet test src/QTKD.slnx --logger "trx;LogFilePrefix=qtkd" --logger "console;verbosity=normal" --results-directory docs/testing/trx
+```
+
+Kết quả hiện tại: 47/47 unit test, 33/33 integration test pass. Bảng TC01–TC08, lỗi đã sửa và lỗi còn tồn tại:
+[docs/testing/test-report.md](docs/testing/test-report.md).
+
+## 7. Demo cuối: clone → cấu hình → migration → chạy API → chạy test
+
+```
+git clone <url-repo> QTKD && cd QTKD
+export QTKD_DB_PASSWORD=<mật khẩu tự chọn>
+docker compose up -d                                   # PostgreSQL ở cổng 5433
+cd src/QTKD.Api
+dotnet user-secrets set "ConnectionStrings:QtkdDb" "Host=localhost;Port=5433;Database=qtkd;Username=postgres;Password=$QTKD_DB_PASSWORD"
+dotnet ef database update                              # migration
+cd ../..
+dotnet run --project src/QTKD.Api --launch-profile http   # API: http://localhost:5084/swagger
+# terminal khác:
+./docs/demo/demo-week06.sh                             # luồng Customer → Contract → Submit
+dotnet test src/QTKD.slnx                              # unit + integration test
 ```
 
 ## Ghi chú thiết kế
