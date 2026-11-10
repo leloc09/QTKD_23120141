@@ -26,6 +26,7 @@ Passed!  - Failed: 0, Passed: 47, Skipped: 0, Total: 47 - QTKD.UnitTests.dll (ne
 Passed!  - Failed: 0, Passed: 33, Skipped: 0, Total: 33 - QTKD.IntegrationTests.dll (net10.0)
 ```
 
+- Ảnh console: [dotnet-test-1.png](dotnet-test-1.png) (tổng kết 47 + 33 test, 0 fail) và [dotnet-test-2.png](dotnet-test-2.png) (`Test summary: total: 80, failed: 0, succeeded: 80`)
 - Toàn bộ output console: [dotnet-test-output.txt](dotnet-test-output.txt)
 - File TRX: [trx/](trx/)
 
