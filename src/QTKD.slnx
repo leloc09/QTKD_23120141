@@ -1,3 +1,5 @@
 <Solution>
+  <Project Path="../tests/QTKD.IntegrationTests/QTKD.IntegrationTests.csproj" />
+  <Project Path="../tests/QTKD.UnitTests/QTKD.UnitTests.csproj" />
   <Project Path="QTKD.Api/QTKD.Api.csproj" />
 </Solution>
