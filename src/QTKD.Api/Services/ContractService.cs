@@ -18,6 +18,14 @@ public class ContractService
 
     private DateOnly Today => DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
 
+    // PostgreSQL (timestamptz) chỉ lưu đến micro giây; .NET trên Windows/Linux có độ chính xác 100ns.
+    // Cắt bỏ phần lẻ để thời gian trả về trong response khớp với giá trị đọc lại từ DB (BUG-02, tuần 07).
+    private DateTimeOffset UtcNow()
+    {
+        var now = _clock.GetUtcNow();
+        return now.AddTicks(-(now.Ticks % TimeSpan.TicksPerMicrosecond));
+    }
+
     public Task<List<ContractSummary>> ListAsync() =>
         _db.Contracts.AsNoTracking()
             .OrderBy(c => c.ContractNo)
@@ -48,7 +56,7 @@ public class ContractService
         var (errors, customer) = await ValidateAsync(request);
         if (errors.Count > 0) return ServiceError.Validation(errors);
 
-        var now = _clock.GetUtcNow();
+        var now = UtcNow();
         var contract = new Contract { Id = Guid.NewGuid(), Status = ContractStatus.Draft, Customer = customer };
         Apply(contract, request, now);
         if (await ContractNoTakenAsync(contract)) return ContractNoExists(contract.ContractNo);
@@ -67,7 +75,7 @@ public class ContractService
         var (errors, customer) = await ValidateAsync(request);
         if (errors.Count > 0) return ServiceError.Validation(errors);
 
-        var now = _clock.GetUtcNow();
+        var now = UtcNow();
         contract.Customer = customer;
         Apply(contract, request, now);
         if (await ContractNoTakenAsync(contract)) return ContractNoExists(contract.ContractNo);
@@ -94,7 +102,7 @@ public class ContractService
             errors.Add(new("documentType", "INVALID_VALUE", $"Loại tài liệu chỉ nhận: {string.Join(", ", ContractRules.DocumentTypes)}."));
         if (errors.Count > 0) return ServiceError.Validation(errors);
 
-        var now = _clock.GetUtcNow();
+        var now = UtcNow();
         var attachment = new ContractAttachment
         {
             Id = Guid.NewGuid(),
@@ -149,7 +157,7 @@ public class ContractService
                 "Hợp đồng chưa đủ điều kiện gửi trình duyệt.", failed);
 
         // Bước 4–6: khởi tạo phiên phê duyệt (mô phỏng), chuyển trạng thái, ghi lịch sử — lưu trong một transaction
-        var now = _clock.GetUtcNow();
+        var now = UtcNow();
         var approval = new ApprovalRequest
         {
             Id = Guid.NewGuid(),
@@ -190,7 +198,7 @@ public class ContractService
             return ServiceError.Conflict("CTR03_INVALID_TRANSITION",
                 $"Không được chuyển hợp đồng từ {contract.Status} sang Approved; hợp đồng phải được gửi trình duyệt (PendingApproval) trước.");
 
-        var now = _clock.GetUtcNow();
+        var now = UtcNow();
         var approval = await _db.ApprovalRequests
             .FirstOrDefaultAsync(a => a.ContractId == id && a.Status == ApprovalStatus.Pending);
         if (approval is not null)
